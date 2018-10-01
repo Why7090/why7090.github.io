@@ -86,6 +86,12 @@
         span {
             background: #fd0;
         }
+
+        textarea {
+            margin: 0 auto;
+            width: 100%;
+            max-width: 600px;
+        }
     </style>
 </head>
 
@@ -100,14 +106,14 @@
         <button class="button" onclick="connect()">Connect</button><br>
     </div>
 
-    <div id="communication" style="margin: 0 auto; width:600px; display: none;">
+    <div id="communication" style="margin: 0 auto; max-width: 600px; display: none;">
         <h2 id="connected-with"></h2><br>
         <div class="tab">
             <button class="tablinks" onclick="openTab(event, 'Text')">Text</button>
             <button class="tablinks" onclick="openTab(event, 'File')">File</button>
         </div>
         <div id="Text" class="tabcontent">
-            <textarea id="data-text" rows="5" cols="60" placeholder="Text to send..."></textarea><br>
+            <textarea id="data-text"  rows="6" placeholder="Text to send..."></textarea><br>
             <button class="button" onclick="sendText()">Send</button>
         </div>
         <div id="File" class="tabcontent">
@@ -176,7 +182,7 @@
             conn.on('data', function(data) {
                 switch(data.type) {
                     case "text":
-                        document.getElementById('communication').innerHTML += '<br><div>Text received: <br><textarea rows="5" cols="60" readonly>' + data.content + '</textarea></div>';
+                        document.getElementById('communication').innerHTML += '<br><div>Text received: <br><textarea rows="5" readonly>' + data.content + '</textarea></div>';
                         break;
                     case "file":
                         download(data.content, data.name);
