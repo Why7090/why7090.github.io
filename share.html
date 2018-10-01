@@ -1,0 +1,230 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/0.3.16/peer.min.js"></script>
+    <style>
+        /* Style the tab */
+        
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            align-items: center
+        }
+        /* Style the buttons that are used to open the tab content */
+        
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+        }
+        /* Change background color of buttons on hover */
+        
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        /* Create an active/current tablink class */
+        
+        .tab button.active {
+            background-color: #ccc;
+        }
+        /* Style the tab content */
+        
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        
+        body {
+            padding-top: 80px;
+            text-align: center;
+            font-family: monaco, monospace;
+            background-size: cover;
+        }
+
+        .button {
+            background-color: #e7e7e7; /* Green */
+            border: 2px solid #e7e7e7;
+            color: black;
+            padding: 6px 48px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            -webkit-transition-duration: 0.4s; /* Safari */
+            transition-duration: 0.4s;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: white;
+            color: black;
+            border: 2px solid #e7e7e7;
+        }
+        
+        h1,
+        h2 {
+            display: inline-block;
+            background: #fff;
+        }
+        
+        h1 {
+            font-size: 30px
+        }
+        
+        h2 {
+            font-size: 20px;
+        }
+        
+        span {
+            background: #fd0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Share Data</h1><br>
+    <h2>Your ID is:</h2><br>
+    <h1 id="my-id"></h1><br>
+
+    <div id="connection">
+        <h2>Connect with target ID:</h2><br>
+        <input id="target-id" type="number" placeholder="000000" maxlength="6"><br>
+        <button class="button" onclick="connect()">Connect</button><br>
+    </div>
+
+    <div id="communication" style="margin: 0 auto; width:600px; display: none;">
+        <h2 id="connected-with"></h2><br>
+        <div class="tab">
+            <button class="tablinks" onclick="openTab(event, 'Text')">Text</button>
+            <button class="tablinks" onclick="openTab(event, 'File')">File</button>
+        </div>
+        <div id="Text" class="tabcontent">
+            <textarea id="data-text" rows="5" cols="60" placeholder="Text to send..."></textarea><br>
+            <button class="button" onclick="sendText()">Send</button>
+        </div>
+        <div id="File" class="tabcontent">
+            Select a file: <input id="data-file" type="file" name="myFile"><br>
+            <button class="button" onclick="sendFile()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        var prefix = "df3emFKiMg_";
+        var peer;
+        var conn
+        Number.prototype.pad = function(size) {
+            var s = String(this);
+            while (s.length < (size || 2)) {
+                s = "0" + s;
+            }
+            return s;
+        }
+        Element.prototype.remove = function() {
+            this.parentElement.removeChild(this);
+        }
+
+        window.onload = function() {
+            peer = new Peer(prefix + Math.floor(Math.random() * 1000000).pad(6));
+            peer.on('open', function(id) {
+                document.getElementById("my-id").innerHTML = id.split("_").pop()
+            });
+            peer.on('connection', function(connection) {
+                conn = connection;
+                onConnect();
+            });
+            peer.on('error', function(err) {
+                alert(err)
+            });
+        }
+
+        function connect() {
+            var targetId = document.getElementById("target-id").value;
+            conn = peer.connect(prefix + targetId);
+            conn.on('open', function() {
+                onConnect();
+            });
+        }
+
+        function sendText() {
+            conn.send({
+                type: "text",
+                content: document.getElementById("data-text").value
+            });
+        }
+
+        function sendFile() {
+            var file = document.getElementById("data-file").files[0];
+            conn.send({
+                type: "file",
+                name: file.name,
+                content: file
+            });
+        }
+
+        function onConnect() {
+            document.getElementById("communication").style.display = "block";
+            document.getElementById("connection").remove();
+            document.getElementById("connected-with").innerHTML = "Connected with: " + conn.peer.split("_").pop();
+            conn.on('data', function(data) {
+                switch(data.type) {
+                    case "text":
+                        document.getElementById('communication').innerHTML += '<br><div>Text received: <br><textarea rows="5" cols="60" readonly>' + data.content + '</textarea></div>';
+                        break;
+                    case "file":
+                        download(data.content, data.name);
+                        document.getElementById('communication').innerHTML += '<br><div>File received: <br>' + data.name + '</div>';
+                        break;
+                }
+            });
+        }
+
+        function openTab(evt, tabName) {
+            // Declare all variables
+            var i, tabcontent, tablinks;
+
+            // Get all elements with class="tabcontent" and hide them
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+
+            // Get all elements with class="tablinks" and remove the class "active"
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+
+            // Show the current tab, and add an "active" class to the button that opened the tab
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        function download(data, filename) {
+            var file = new Blob([data]);
+            if (window.navigator.msSaveOrOpenBlob) // IE10+
+                window.navigator.msSaveOrOpenBlob(file, filename);
+            else { // Others
+                var a = document.createElement("a"),
+                        url = URL.createObjectURL(file);
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);  
+                }, 0); 
+            }
+        }
+    </script>
+</body>
+
+</html>
