@@ -102,7 +102,7 @@
 
     <div id="connection">
         <h2>Connect with target ID:</h2><br>
-        <input id="target-id" type="number" placeholder="000000" maxlength="6"><br>
+        <input id="target-id" type="number" placeholder="000000" maxlength="6" onkeypress="EnterPress(event)" onkeydown="EnterPress()"><br>
         <button class="button" onclick="connect()">Connect</button><br>
     </div>
 
@@ -125,7 +125,7 @@
     <script>
         var prefix = "df3emFKiMg_";
         var peer;
-        var conn
+        var conn;
         Number.prototype.pad = function(size) {
             var s = String(this);
             while (s.length < (size || 2)) {
@@ -147,7 +147,7 @@
                 onConnect();
             });
             peer.on('error', function(err) {
-                alert(err)
+                alert(err);
             });
         }
 
@@ -190,6 +190,16 @@
                         break;
                 }
             });
+            conn.on('close', function() {
+                location.reload();
+            });
+        }
+
+        function EnterPress(e){
+            var e = e || window.event;
+            if(e.keyCode == 13){
+                connect();
+            }
         }
 
         function openTab(evt, tabName) {
