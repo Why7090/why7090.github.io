@@ -158,7 +158,7 @@
 
         function connect() {
             var targetId = document.getElementById("target-id").value;
-            conn = peer.connect(prefix + targetId);
+            conn = peer.connect(prefix + targetId, {reliable: true});
             conn.on('open', function() {
                 onConnect();
             });
