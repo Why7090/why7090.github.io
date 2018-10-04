@@ -2,6 +2,7 @@
 
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Share Data</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/0.3.9/peer.min.js"></script>
     <style>
         /* Style the tab */
@@ -128,124 +129,248 @@
     </div>
 
     <script>
-        var prefix = "df3emFKiMg_";
-        var peer;
-        var conn;
-        Number.prototype.pad = function(size) {
-            var s = String(this);
-            while (s.length < (size || 2)) {
-                s = "0" + s;
-            }
-            return s;
-        }
-        Element.prototype.remove = function() {
-            this.parentElement.removeChild(this);
-        }
+var prefix = "df3emFKiMg_";
+var peer;
+var conn;
+var filesSending = [];
+var filesReceiving = {};
+const mb = 1048576;
+Number.prototype.pad = function(size) {
+    var s = String(this);
+    while(s.length < (size || 2)) {
+        s = "0" + s;
+    }
+    return s;
+}
+Element.prototype.remove = function() {
+    this.parentElement.removeChild(this);
+}
+Array.prototype.remove = function(element) {
+    for(var i = this.length-1; i--;) {
+        if(this[i] === element) this.splice(i, 1);
+    }
+}
+String.prototype.hashCode = function() {
+    var hash = 0, i, chr;
+    if (this.length === 0) return hash;
+    for (i = 0; i < this.length; i++) {
+        chr   = this.charCodeAt(i);
+        hash  = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+};
 
-        window.onload = function() {
-            peer = new Peer(prefix + Math.floor(Math.random() * 1000000).pad(6), {debug: 3});
-            peer.on('open', function(id) {
-                document.getElementById("my-id").innerHTML = id.split("_").pop()
-            });
-            peer.on('connection', function(connection) {
-                conn = connection;
-                onConnect();
-            });
-            peer.on('error', function(err) {
-                alert(err);
-            });
-        }
+function SlicedFileRead(name, size, sliceCount, sliceSize) {
+    this.name = name;
+    this.size = size;
+    this.sliceCount = sliceCount;
+    this.sliceSize = sliceSize;
+    this.slices = [];
+}
+SlicedFileRead.prototype.append = function(slice) {
+    this.slices.push(slice);
+    this.blob = undefined; // Invalidate the blob
+    if(this.slices.length == this.sliceCount) {
+        return true;
+    }
+    return false;
+};
+SlicedFileRead.prototype.getBlob = function() {
+    if(!this.blob) {
+        this.blob = new Blob(this.slices);
+    }
+    return this.blob;
+};
 
-        function connect() {
-            var targetId = document.getElementById("target-id").value;
-            conn = peer.connect(prefix + targetId, {reliable: true});
-            conn.on('open', function() {
-                onConnect();
-            });
-        }
+window.onload = function() {
+    peer = new Peer(prefix + Math.floor(Math.random() * 1000000).pad(6));
+    peer.on('open', function(id) {
+        document.getElementById("my-id").innerHTML = id.split("_").pop()
+    });
+    peer.on('connection', function(connection) {
+        conn = connection;
+        onConnect();
+    });
+    peer.on('error', function(err) {
+        alert(err);
+    });
+}
 
-        function sendText() {
-            conn.send({
-                type: "text",
-                content: document.getElementById("data-text").value
-            });
-        }
+function connect() {
+    var targetId = document.getElementById("target-id").value;
+    conn = peer.connect(prefix + targetId, {reliable: true});
+    conn.on('open', function() {
+        onConnect();
+    });
+}
 
-        function sendFile() {
-            var file = document.getElementById("data-file").files[0];
-            conn.send({
-                type: "file",
-                name: file.name,
-                content: file
-            });
-        }
+function sendText() {
+    conn.send({
+        type: "text",
+        content: document.getElementById("data-text").value
+    });
+}
 
-        function onConnect() {
-            document.getElementById("communication").style.display = "block";
-            document.getElementById("connection").remove();
-            document.getElementById("connected-with").innerHTML = "Connected with: " + conn.peer.split("_").pop();
-            conn.on('data', function(data) {
-                switch(data.type) {
-                    case "text":
-                        document.getElementById('communication').innerHTML += '<br><div>Text received: <br><textarea rows="5" readonly>' + data.content + '</textarea></div>';
-                        break;
-                    case "file":
-                        document.getElementById('communication').innerHTML += '<br><div>File received: <br>' + data.name + '</div>';
-                        download(data.content, data.name);
-                        break;
+function sendFile() {
+    var file = document.getElementById("data-file").files[0];
+    if(file.size < 10 * mb) {
+        conn.send({
+            type: "file",
+            name: file.name,
+            content: file
+        });
+        document.getElementById('communication').innerHTML += '<br><div>File sent: <br>' + file.name + '</div>';
+    }
+    else {
+        var slicedFile = new SlicedFile(file, mb);
+        filesSending.push(slicedFile);
+        slicedFile.sendInfo();
+    }
+}
+
+
+function SlicedFile(file, sliceSize) {
+    this.file = file;
+    this.name = file.name;
+    this.size = file.size;
+    this.sliceSize = sliceSize;
+    this.sliceCount = Math.ceil(this.size / this.sliceSize);
+    this.currentSlice = -1;
+}
+
+SlicedFile.prototype.sendInfo = function() {
+    var data = {
+        type: "fileInfo",
+        name: this.name,
+        size: this.size,
+        sliceSize: this.sliceSize,
+        count: this.sliceCount
+    };
+    conn.send(data);
+    //console.log(data);
+    document.getElementById('communication').innerHTML += '<br><div>File sending: <br>' + this.name + '<br> <strong id="F' + this.name.hashCode() + '">0 MiB</strong> / ' + (this.size / mb).toFixed(2) + ' MiB</div>';
+}
+
+SlicedFile.prototype.sendNextSlice = function() {
+    this.currentSlice += 1;
+    if(this.currentSlice < this.sliceCount) {
+        var data = {
+            type: "fileSlice",
+            name: this.name,
+            slice: this.currentSlice,
+            content: this.file.slice(this.currentSlice * this.sliceSize, (this.currentSlice + 1) * this.sliceSize)
+        };
+        conn.send(data);
+        //console.log(data);
+    }
+    document.getElementById("F" + this.name.hashCode()).innerHTML = Math.min((this.currentSlice + 1) * this.sliceSize / mb, this.size / mb).toFixed(2) + " MiB";
+    return this.currentSlice;
+}
+
+SlicedFile.prototype.sendNextIfConfirmed = function(data) {
+    if(this.currentSlice < this.sliceCount && data.name === this.name && data.slice === this.currentSlice) {
+        this.sendNextSlice();
+    }
+}
+
+function sendFileConfirm(fileName, slice) {
+    data = {
+        type: "fileSliceConfirm",
+        name: fileName,
+        slice: slice
+    };
+    conn.send(data);
+    //console.log(data);
+}
+
+function onConnect() {
+    document.getElementById("communication").style.display = "block";
+    document.getElementById("connection").remove();
+    document.getElementById("connected-with").innerHTML = "Connected with: " + conn.peer.split("_").pop();
+    conn.on('data', function(data) {
+        switch(data.type) {
+            case "text":
+                document.getElementById('communication').innerHTML += '<br><div>Text received: <br><textarea rows="5" readonly>' + data.content + '</textarea></div>';
+                break;
+            case "file":
+                document.getElementById('communication').innerHTML += '<br><div>File received: <br>' + data.name + '</div>';
+                download(data.content, data.name);
+                break;
+            case "fileInfo":
+                document.getElementById('communication').innerHTML += '<br><div>File receiving: <br>' + data.name + '<br> <strong id="F' + data.name.hashCode() + '">0 MiB</strong> / ' + (data.size / mb).toFixed(2) + ' MiB</div>';
+                filesReceiving[data.name] = new SlicedFileRead(data.name, data.size, data.count, data.sliceSize);
+                sendFileConfirm(data.name, -1);
+                break;
+            case "fileSlice":
+                var file = filesReceiving[data.name];
+                document.getElementById("F" + file.name.hashCode()).innerHTML = Math.min((data.slice + 1) * file.sliceSize / mb, file.size / mb).toFixed(2) + " MiB";
+                if(file.append(data.content)) {
+                    download(file.getBlob(), data.name);
+                    delete filesReceiving[data.name];
                 }
-            });
-            conn.on('close', function() {
-                alert("disconnected");
-                //location.reload();
-            });
+                sendFileConfirm(data.name, data.slice);
+                break;
+            case "fileSliceConfirm":
+                filesSending.forEach(function(value) {
+                    if(value.sendNextIfConfirmed(data) >= value.sliceCount - 1) {
+                        filesSending.remove(value);
+                    }
+                });
+                break;
         }
+    });
+    conn.on('close', function() {
+        alert("disconnected");
+        //location.reload();
+    });
+}
 
-        function EnterPress(e){
-            var e = e || window.event;
-            if(e.keyCode == 13){
-                connect();
-            }
-        }
+function EnterPress(e){
+    var e = e || window.event;
+    if(e.keyCode == 13){
+        connect();
+    }
+}
 
-        function openTab(evt, tabName) {
-            // Declare all variables
-            var i, tabcontent, tablinks;
+function openTab(evt, tabName) {
+    // Declare all variables
+    var i, tabcontent, tablinks;
 
-            // Get all elements with class="tabcontent" and hide them
-            tabcontent = document.getElementsByClassName("tabcontent");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
+    // Get all elements with class="tabcontent" and hide them
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
 
-            // Get all elements with class="tablinks" and remove the class "active"
-            tablinks = document.getElementsByClassName("tablinks");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
+    // Get all elements with class="tablinks" and remove the class "active"
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
 
-            // Show the current tab, and add an "active" class to the button that opened the tab
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
-        }
+    // Show the current tab, and add an "active" class to the button that opened the tab
+    document.getElementById(tabName).style.display = "block";
+    evt.currentTarget.className += " active";
+}
 
-        function download(data, filename) {
-            var file = new Blob([data]);
-            if (window.navigator.msSaveOrOpenBlob) // IE10+
-                window.navigator.msSaveOrOpenBlob(file, filename);
-            else {
-                var a = document.createElement("a"),
-                        url = URL.createObjectURL(file);
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(function() {
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                }, 0); 
-            }
-        }
+function download(data, filename) {
+    var file = new Blob([data]);
+    if (window.navigator.msSaveOrOpenBlob) // IE10+
+        window.navigator.msSaveOrOpenBlob(file, filename);
+    else {
+        var a = document.createElement("a"),
+                url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0); 
+    }
+}
     </script>
 </body>
 
