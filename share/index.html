@@ -321,8 +321,9 @@ function onConnect() {
         }
     });
     conn.on('close', function() {
-        alert("disconnected");
-        //location.reload();
+        if(confirm("Disconnected. Do you want to reload?")) {
+            location.reload();
+        }
     });
 }
 
