@@ -223,7 +223,7 @@ function sendFile() {
             document.getElementById('communication').innerHTML += '<br><div>File sent: <br>' + file.name + '</div>';
         }
         else {
-            var slicedFile = new SlicedFile(file, mb);
+            var slicedFile = new SlicedFile(file, 5 * mb);
             filesSending.push(slicedFile);
             slicedFile.sendInfo();
         }
@@ -235,8 +235,8 @@ function SlicedFile(file, sliceSize) {
     this.file = file;
     this.name = file.name;
     this.size = file.size;
-    this.sliceSize = sliceSize;
-    this.sliceCount = Math.ceil(this.size / this.sliceSize);
+    this.sliceCount = Math.floor(this.size / sliceSize);
+    this.sliceSize = Math.ceil(this.size / this.sliceCount);
     this.currentSlice = -1;
 }
 
