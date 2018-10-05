@@ -123,7 +123,7 @@
             <button class="button" onclick="sendText()">Send</button>
         </div>
         <div id="File" class="tabcontent">
-            Select a file: <input id="data-file" type="file" name="myFile"><br>
+            Select files: <input id="data-file" type="file" name="myFile" multiple><br>
             <button class="button" onclick="sendFile()">Send</button>
         </div>
     </div>
@@ -213,20 +213,21 @@ function sendText() {
 }
 
 function sendFile() {
-    var file = document.getElementById("data-file").files[0];
-    if(file.size < 10 * mb) {
-        conn.send({
-            type: "file",
-            name: file.name,
-            content: file
-        });
-        document.getElementById('communication').innerHTML += '<br><div>File sent: <br>' + file.name + '</div>';
-    }
-    else {
-        var slicedFile = new SlicedFile(file, mb);
-        filesSending.push(slicedFile);
-        slicedFile.sendInfo();
-    }
+    Array.prototype.forEach.call(document.getElementById("data-file").files, function(file) {
+        if(file.size < 10 * mb) {
+            conn.send({
+                type: "file",
+                name: file.name,
+                content: file
+            });
+            document.getElementById('communication').innerHTML += '<br><div>File sent: <br>' + file.name + '</div>';
+        }
+        else {
+            var slicedFile = new SlicedFile(file, mb);
+            filesSending.push(slicedFile);
+            slicedFile.sendInfo();
+        }
+    });
 }
 
 
@@ -321,7 +322,7 @@ function onConnect() {
         }
     });
     conn.on('close', function() {
-        if(confirm("Disconnected. Do you want to reload?")) {
+        if(confirm("Disconnected.\nDo you want to reload?")) {
             location.reload();
         }
     });
