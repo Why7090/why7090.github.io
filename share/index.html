@@ -134,6 +134,7 @@ var peer;
 var conn;
 var filesSending = [];
 var filesReceiving = {};
+var connected = false;
 const mb = 1048576;
 Number.prototype.pad = function(size) {
     var s = String(this);
@@ -286,6 +287,10 @@ function sendFileConfirm(fileName, slice) {
 }
 
 function onConnect() {
+    if(connected) {
+        return;
+    }
+    connected = true;
     document.getElementById("communication").style.display = "block";
     document.getElementById("connection").remove();
     document.getElementById("connected-with").innerHTML = "Connected with: " + conn.peer.split("_").pop();
